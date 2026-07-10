@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SNAPTAG — point, scan, compare</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#F6F3EA;
+    --paper-dim:#EDE8D9;
+    --ink:#1C1B18;
+    --ink-soft:#57544A;
+    --red:#D6432B;
+    --green:#2F9E5B;
+    --line:#C9C2AE;
+    --yellow:#F2C438;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'IBM Plex Mono', monospace;
+    -webkit-font-smoothing:antialiased;
+    background-image:
+      linear-gradient(var(--paper-dim) 1px, transparent 1px);
+    background-size: 100% 34px;
+  }
+  h1,h2,h3,.display{
+    font-family:'Space Grotesk', sans-serif;
+    letter-spacing:-0.02em;
+  }
+  a{color:inherit;}
+  .wrap{max-width:960px;margin:0 auto;padding:0 20px;}
+
+  /* ---------- Header ---------- */
+  header{
+    padding:26px 0 18px;
+    border-bottom:2px solid var(--ink);
+  }
+  .brandrow{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;}
+  .brand{display:flex;align-items:center;gap:10px;}
+  .brand .mark{
+    width:34px;height:34px;border:2.5px solid var(--ink);border-radius:6px;
+    display:flex;align-items:center;justify-content:center;
+    background:var(--ink);
+  }
+  .brand .mark svg{width:18px;height:18px;stroke:var(--paper);}
+  .brand span.wordmark{font-size:22px;font-weight:700;}
+  .brand span.wordmark em{font-style:normal;color:var(--red);}
+  .tagline{font-size:12px;color:var(--ink-soft);letter-spacing:.08em;text-transform:uppercase;}
+
+  /* ---------- Hero ---------- */
+  .hero{padding:40px 0 20px;}
+  .eyebrow{
+    display:inline-flex;align-items:center;gap:8px;
+    font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--ink-soft);margin-bottom:14px;
+  }
+  .eyebrow .dot{width:7px;height:7px;border-radius:50%;background:var(--green);animation:pulse 1.6s infinite;}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.25;}}
+  .hero h1{
+    font-size:clamp(34px, 6vw, 58px);
+    line-height:0.98;
+    margin:0 0 14px;
+  }
+  .hero p.sub{
+    max-width:520px;color:var(--ink-soft);font-size:14.5px;line-height:1.6;margin:0 0 30px;
+  }
+
+  /* ---------- Scanner ---------- */
+  .scanner-shell{
+    display:grid;
+    grid-template-columns: 1.1fr 0.9fr;
+    gap:28px;
+    align-items:start;
+  }
+  @media (max-width:760px){ .scanner-shell{grid-template-columns:1fr;} }
+
+  .viewfinder{
+    position:relative;
+    aspect-ratio: 4/3;
+    background:#0d0d0c;
+    border-radius:14px;
+    overflow:hidden;
+    box-shadow: 0 0 0 2px var(--ink);
+  }
+  .viewfinder video, .viewfinder canvas, .viewfinder img.still{
+    width:100%;height:100%;object-fit:cover;display:block;
+  }
+  .viewfinder .placeholder{
+    position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    color:#8b877c;gap:10px;text-align:center;padding:20px;font-size:13px;
+  }
+  .corner{position:absolute;width:26px;height:26px;border-color:var(--yellow);z-index:3;}
+  .corner.tl{top:14px;left:14px;border-top:3px solid;border-left:3px solid;border-radius:4px 0 0 0;}
+  .corner.tr{top:14px;right:14px;border-top:3px solid;border-right:3px solid;border-radius:0 4px 0 0;}
+  .corner.bl{bottom:14px;left:14px;border-bottom:3px solid;border-left:3px solid;border-radius:0 0 0 4px;}
+  .corner.br{bottom:14px;right:14px;border-bottom:3px solid;border-right:3px solid;border-radius:0 0 4px 0;}
+
+  .laser{
+    position:absolute;left:6%;right:6%;height:2px;
+    background:linear-gradient(90deg, transparent, var(--green), transparent);
+    box-shadow:0 0 12px 2px var(--green);
+    top:10%;
+    opacity:0;
+    z-index:2;
+  }
+  .laser.active{ animation: sweep 1.4s cubic-bezier(.65,0,.35,1) infinite; }
+  @keyframes sweep{
+    0%{top:8%;opacity:1;}
+    50%{top:88%;opacity:1;}
+    51%{opacity:0;}
+    52%{top:8%;opacity:0;}
+    60%{opacity:1;}
+    100%{top:88%;opacity:1;}
+  }
+  @media (prefers-reduced-motion: reduce){
+    .laser.active{animation:none;opacity:.9;top:50%;}
+    .eyebrow .dot{animation:none;}
+  }
+
+  .scan-status{
+    position:absolute;bottom:10px;left:14px;right:14px;z-index:3;
+    font-size:11px;color:var(--paper);letter-spacing:.06em;
+    display:flex;justify-content:space-between;text-transform:uppercase;
+    text-shadow:0 1px 3px rgba(0,0,0,.6);
+  }
+
+  .controls{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap;}
+  button, .btn{
+    font-family:'Space Grotesk', sans-serif;
+    font-weight:600;font-size:14px;
+    border:2px solid var(--ink);
+    background:var(--ink);color:var(--paper);
+    padding:12px 20px;border-radius:8px;cursor:pointer;
+    display:inline-flex;align-items:center;gap:8px;
+    transition:transform .12s ease, background .15s ease, color .15s ease;
+  }
+  button:hover{transform:translateY(-1px);}
+  button:active{transform:translateY(0);}
+  button:focus-visible, a:focus-visible, input:focus-visible{outline:3px solid var(--red);outline-offset:2px;}
+  button.primary{background:var(--red);border-color:var(--red);color:var(--paper);}
+  button.ghost{background:transparent;color:var(--ink);}
+  button:disabled{opacity:.45;cursor:not-allowed;transform:none;}
+  .file-btn{position:relative;overflow:hidden;}
+  .file-btn input{position:absolute;inset:0;opacity:0;cursor:pointer;}
+
+  /* ---------- Side info card ---------- */
+  .howto{
+    border:2px solid var(--ink);
+    border-radius:12px;
+    padding:20px;
+    background:var(--paper);
+  }
+  .howto h3{margin:0 0 12px;font-size:15px;text-transform:uppercase;letter-spacing:.04em;}
+  .howto ol{margin:0 0 16px;padding-left:18px;font-size:13px;color:var(--ink-soft);line-height:1.9;}
+  .howto .note{
+    font-size:11.5px;color:var(--ink-soft);
+    border-top:1px dashed var(--line);padding-top:12px;line-height:1.6;
+  }
+  .badge{
+    display:inline-block;font-size:10px;letter-spacing:.08em;
+    background:var(--yellow);color:var(--ink);padding:2px 7px;border-radius:4px;
+    font-weight:600;font-family:'Space Grotesk',sans-serif;text-transform:uppercase;
+  }
+
+  /* ---------- Receipt result ---------- */
+  .receipt-wrap{margin-top:44px;}
+  .receipt{
+    max-width:640px;margin:0 auto;
+    background:#FFFDF7;
+    border:1px solid var(--line);
+    box-shadow:0 18px 40px -20px rgba(0,0,0,.35);
+    padding:26px 26px 4px;
+    position:relative;
+    transform-origin:top center;
+    animation: print .5s ease;
+  }
+  @keyframes print{
+    from{ clip-path: inset(0 0 100% 0); opacity:0;}
+    to{ clip-path: inset(0 0 0% 0); opacity:1;}
+  }
+  .receipt::after{
+    content:"";
+    display:block;height:14px;margin:0 -26px;
+    background:
+      linear-gradient(-45deg, #FFFDF7 8px, transparent 0),
+      linear-gradient(45deg, #FFFDF7 8px, transparent 0);
+    background-size:16px 16px;background-position:left bottom;
+    filter: drop-shadow(0 6px 4px rgba(0,0,0,.08));
+  }
+  .r-top{display:flex;gap:14px;align-items:flex-start;border-bottom:1px dashed var(--line);padding-bottom:16px;margin-bottom:16px;}
+  .r-thumb{width:64px;height:64px;border-radius:8px;overflow:hidden;flex:none;background:var(--paper-dim);border:1px solid var(--line);}
+  .r-thumb img{width:100%;height:100%;object-fit:cover;}
+  .r-id{font-size:10.5px;color:var(--ink-soft);letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px;}
+  .r-name{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:19px;}
+  .r-meta{font-size:11.5px;color:var(--ink-soft);margin-top:4px;}
+
+  .barcode{
+    height:34px;margin:14px 0 18px;
+    background-image: repeating-linear-gradient(90deg, var(--ink) 0 2px, transparent 2px 4px, var(--ink) 4px 6px, transparent 6px 9px, var(--ink) 9px 12px, transparent 12px 15px);
+  }
+
+  table.compare{width:100%;border-collapse:collapse;font-size:13px;}
+  table.compare th{
+    text-align:left;font-family:'Space Grotesk',sans-serif;font-size:10.5px;
+    text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);
+    padding:0 6px 8px;border-bottom:1px solid var(--ink);
+  }
+  table.compare td{padding:10px 6px;border-bottom:1px dashed var(--line);vertical-align:middle;}
+  table.compare tr.best td{background:rgba(242,196,56,.28);}
+  .store-cell{display:flex;align-items:center;gap:8px;font-weight:600;}
+  .swatch{width:9px;height:9px;border-radius:50%;flex:none;}
+  .price{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:15px;}
+  .shipping{color:var(--ink-soft);font-size:11px;}
+  .stars{color:var(--red);font-size:11px;letter-spacing:1px;}
+  .stamp{
+    display:inline-block;font-size:9.5px;font-weight:700;letter-spacing:.06em;
+    color:var(--green);border:1.5px solid var(--green);border-radius:4px;
+    padding:1px 6px;transform:rotate(-4deg);margin-left:6px;text-transform:uppercase;
+  }
+  table.compare a.view{
+    font-size:11px;font-weight:600;color:var(--red);text-decoration:none;border-bottom:1px solid var(--red);white-space:nowrap;
+  }
+  table.compare a.view:hover{opacity:.7;}
+
+  .r-foot{
+    display:flex;justify-content:space-between;align-items:center;
+    padding:16px 0 20px;font-size:11px;color:var(--ink-soft);
+  }
+  .r-foot .total{font-family:'Space Grotesk',sans-serif;color:var(--ink);font-weight:700;font-size:13px;}
+
+  .demo-flag{
+    display:flex;gap:8px;align-items:flex-start;
+    background:var(--paper-dim);border:1px dashed var(--line);border-radius:8px;
+    padding:10px 12px;font-size:11px;color:var(--ink-soft);margin-top:14px;line-height:1.5;
+  }
+
+  /* ---------- History strip ---------- */
+  .history{margin-top:50px;}
+  .history h3{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-soft);margin-bottom:12px;}
+  .history-list{display:flex;gap:10px;overflow-x:auto;padding-bottom:8px;}
+  .hist-item{
+    flex:none;width:110px;border:1px solid var(--line);border-radius:8px;padding:8px;
+    background:#FFFDF7;cursor:pointer;font-size:10.5px;text-align:left;
+  }
+  .hist-item img{width:100%;height:60px;object-fit:cover;border-radius:5px;margin-bottom:6px;}
+  .hist-item .hn{font-weight:600;font-family:'Space Grotesk',sans-serif;}
+  .hist-item .hp{color:var(--red);font-weight:700;margin-top:2px;}
+
+  /* ---------- Backend section ---------- */
+  details.backend{
+    margin:60px 0 40px;border-top:2px solid var(--ink);padding-top:20px;
+  }
+  details.backend summary{
+    cursor:pointer;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:15px;
+    list-style:none;display:flex;align-items:center;gap:8px;
+  }
+  details.backend summary::before{content:"+";font-size:18px;color:var(--red);}
+  details.backend[open] summary::before{content:"–";}
+  details.backend summary::-webkit-details-marker{display:none;}
+  details.backend p{color:var(--ink-soft);font-size:13px;line-height:1.7;max-width:640px;}
+  pre{
+    background:var(--ink);color:#EDE8D9;padding:18px;border-radius:10px;
+    font-size:11.5px;line-height:1.6;overflow-x:auto;
+  }
+  footer{padding:30px 0 60px;color:var(--ink-soft);font-size:11px;border-top:1px solid var(--line);margin-top:20px;text-align:center;}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <div class="brandrow">
+      <div class="brand">
+        <div class="mark">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 7V4h3M17 4h3v3M20 17v3h-3M7 20H4v-3"/>
+            <path d="M4 12h16" stroke-dasharray="1 3"/>
+          </svg>
+        </div>
+        <span class="wordmark">SNAP<em>TAG</em></span>
+      </div>
+      <span class="tagline">object scan → price compare</span>
+    </div>
+  </header>
+
+  <section class="hero">
+    <div class="eyebrow"><span class="dot"></span> camera ready</div>
+    <h1>Point at it.<br>We'll price it.</h1>
+    <p class="sub">Scan any object with your camera — or upload a photo — and get an instant receipt comparing prices across five retailers, cheapest first.</p>
+
+    <div class="scanner-shell">
+      <div>
+        <div class="viewfinder" id="viewfinder">
+          <div class="placeholder" id="placeholder">
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#8b877c" stroke-width="1.6"><path d="M4 7V4h3M17 4h3v3M20 17v3h-3M7 20H4v-3"/><circle cx="12" cy="12" r="3.2"/></svg>
+            Camera is off — tap "Start camera" or upload a photo
+          </div>
+          <video id="video" autoplay playsinline muted style="display:none;"></video>
+          <img id="stillImg" class="still" style="display:none;" alt="Captured object">
+          <div class="corner tl"></div><div class="corner tr"></div>
+          <div class="corner bl"></div><div class="corner br"></div>
+          <div class="laser" id="laser"></div>
+          <div class="scan-status" id="scanStatus" style="display:none;">
+            <span id="scanStatusText">scanning…</span><span id="scanPct">0%</span>
+          </div>
+        </div>
+
+        <div class="controls">
+          <button class="ghost" id="startCam" type="button">Start camera</button>
+          <button class="primary" id="scanBtn" type="button" disabled>Scan object</button>
+          <button class="ghost file-btn" type="button">
+            Upload photo
+            <input type="file" id="fileInput" accept="image/*">
+          </button>
+        </div>
+      </div>
+
+      <div class="howto">
+        <h3>How this works</h3>
+        <ol>
+          <li>Start your camera or upload a photo of an object.</li>
+          <li>Tap "Scan object" — we analyze the frame.</li>
+          <li>Get a receipt-style price comparison across 5 stores, best deal marked.</li>
+          <li>Tap "View deal" to jump to the real store search for that item.</li>
+        </ol>
+        <div class="note">
+          <span class="badge">demo data</span><br><br>
+          This runs entirely in your browser, so object recognition and prices are <strong>simulated</strong> from a built-in catalog — real recognition/live pricing needs paid vision + retailer APIs. See "Wire this up for real" below for a backend you can run.
+        </div>
+      </div>
+    </div>
+
+    <div class="receipt-wrap" id="receiptWrap"></div>
+
+    <div class="history" id="historySection" style="display:none;">
+      <h3>Scan history</h3>
+      <div class="history-list" id="historyList"></div>
+    </div>
+  </section>
+
+  <details class="backend">
+    <summary>Wire this up for real (optional Python backend)</summary>
+    <p>
+      To replace the simulated data with real results, run a small Python server that (1) sends the captured photo to an
+      image-recognition API to identify the object, then (2) queries retailer/price-comparison APIs for that product name,
+      and (3) returns JSON that this page can render instead of the built-in catalog. Save the code below as
+      <code>server.py</code>, add your own API keys, then point the page's <code>fetch()</code> calls at
+      <code>http://localhost:5000/scan</code> instead of the local mock function.
+    </p>
+    <pre id="pycode">from flask import Flask, request, jsonify
+from flask_cors import CORS
+import base64, os, requests
+
+app = Flask(__name__)
+CORS(app)
+
+# Plug in real credentials via environment variables
+VISION_API_KEY = os.environ.get("VISION_API_KEY")
+PRICE_API_KEY  = os.environ.get("PRICE_API_KEY")
+
+def identify_object(image_b64: str) -> str:
+    """Send the image to a vision API (e.g. Google Cloud Vision,
+    AWS Rekognition, or an Anthropic/OpenAI multimodal model) and
+    return a short product label like 'wireless headphones'."""
+    # Example shape only -- replace with a real request:
+    # resp = requests.post(VISION_ENDPOINT, json={...}, headers={...})
+    # return resp.json()["label"]
+    raise NotImplementedError("Connect a real vision API here")
+
+def compare_prices(product_name: str) -> list:
+    """Query a price-comparison / shopping API (e.g. a retailer's
+    official product API, or a licensed price-comparison provider)
+    and return a list of {store, price, shipping, url} dicts."""
+    # resp = requests.get(PRICE_ENDPOINT, params={"q": product_name}, ...)
+    # return resp.json()["results"]
+    raise NotImplementedError("Connect a real price API here")
+
+@app.route("/scan", methods=["POST"])
+def scan():
+    data = request.get_json()
+    image_b64 = data["image"]  # base64 PNG/JPEG from the canvas capture
+
+    product_name = identify_object(image_b64)
+    results = compare_prices(product_name)
+
+    return jsonify({
+        "product": product_name,
+        "results": sorted(results, key=lambda r: r["price"])
+    })
+
+if __name__ == "__main__":
+    app.run(port=5000, debug=True)
+</pre>
+    <p>Run it with <code>pip install flask flask-cors requests</code> then <code>python server.py</code>. Keep API keys server-side only — never in this HTML file.</p>
+  </details>
+
+  <footer>SNAPTAG — a client-side demo. Prices shown are simulated for illustration and are not live retailer data.</footer>
+</div>
+
+<canvas id="canvas" style="display:none;"></canvas>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ---------------- Catalog (simulated recognition + pricing) ---------------- */
+  const CATALOG = [
+    { name:"Wireless Over-Ear Headphones", base:179, cat:"electronics" },
+    { name:"Stainless Steel Water Bottle", base:24, cat:"home" },
+    { name:"Running Shoes", base:98, cat:"apparel" },
+    { name:"Mechanical Keyboard", base:129, cat:"electronics" },
+    { name:"Espresso Machine", base:249, cat:"home" },
+    { name:"Backpack (Everyday Carry)", base:64, cat:"apparel" },
+    { name:"Smartwatch", base:229, cat:"electronics" },
+    { name:"Ceramic Coffee Mug", base:14, cat:"home" },
+    { name:"Desk Lamp (LED)", base:39, cat:"home" },
+    { name:"Bluetooth Speaker", base:59, cat:"electronics" },
+    { name:"Sunglasses", base:89, cat:"apparel" },
+    { name:"Electric Kettle", base:44, cat:"home" },
+    { name:"Board Game", base:29, cat:"toys" },
+    { name:"Yoga Mat", base:32, cat:"fitness" },
+    { name:"Digital Camera", base:399, cat:"electronics" },
+    { name:"Table Lamp", base:52, cat:"home" },
+    { name:"Sneakers", base:110, cat:"apparel" },
+    { name:"Portable Charger", base:35, cat:"electronics" }
+  ];
+
+  const STORES = [
+    { name:"Amazon",  color:"#FF9900", searchUrl: q => `https://www.amazon.com/s?k=${q}` },
+    { name:"Walmart", color:"#0071CE", searchUrl: q => `https://www.walmart.com/search?q=${q}` },
+    { name:"Target",  color:"#CC0000", searchUrl: q => `https://www.target.com/s?searchTerm=${q}` },
+    { name:"eBay",    color:"#3665F3", searchUrl: q => `https://www.ebay.com/sch/i.html?_nkw=${q}` },
+    { name:"Best Buy",color:"#003b64", searchUrl: q => `https://www.bestbuy.com/site/searchpage.jsp?st=${q}` }
+  ];
+
+  /* ---------------- State ---------------- */
+  let stream = null;
+  let scanning = false;
+  let lastCaptureDataUrl = null;
+  const history = [];
+
+  /* ---------------- Elements ---------------- */
+  const video = document.getElementById('video');
+  const stillImg = document.getElementById('stillImg');
+  const placeholder = document.getElementById('placeholder');
+  const startCamBtn = document.getElementById('startCam');
+  const scanBtn = document.getElementById('scanBtn');
+  const fileInput = document.getElementById('fileInput');
+  const laser = document.getElementById('laser');
+  const scanStatus = document.getElementById('scanStatus');
+  const scanStatusText = document.getElementById('scanStatusText');
+  const scanPct = document.getElementById('scanPct');
+  const canvas = document.getElementById('canvas');
+  const receiptWrap = document.getElementById('receiptWrap');
+  const historySection = document.getElementById('historySection');
+  const historyList = document.getElementById('historyList');
+
+  /* ---------------- Camera ---------------- */
+  startCamBtn.addEventListener('click', async () => {
+    if (stream){ stopCamera(); return; }
+    try{
+      stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:"environment" }, audio:false });
+      video.srcObject = stream;
+      video.style.display = 'block';
+      stillImg.style.display = 'none';
+      placeholder.style.display = 'none';
+      scanBtn.disabled = false;
+      startCamBtn.textContent = "Stop camera";
+    }catch(err){
+      placeholder.style.display = 'flex';
+      placeholder.textContent = "Couldn't access camera — try 'Upload photo' instead.";
+    }
+  });
+
+  function stopCamera(){
+    if (stream){ stream.getTracks().forEach(t => t.stop()); stream = null; }
+    video.style.display = 'none';
+    placeholder.style.display = 'flex';
+    startCamBtn.textContent = "Start camera";
+  }
+
+  /* ---------------- File upload fallback ---------------- */
+  fileInput.addEventListener('change', () => {
+    const file = fileInput.files[0];
+    if (!file) return;
+    stopCamera();
+    const reader = new FileReader();
+    reader.onload = e => {
+      stillImg.src = e.target.result;
+      stillImg.style.display = 'block';
+      placeholder.style.display = 'none';
+      lastCaptureDataUrl = e.target.result;
+      scanBtn.disabled = false;
+    };
+    reader.readAsDataURL(file);
+  });
+
+  /* ---------------- Scan flow ---------------- */
+  scanBtn.addEventListener('click', () => {
+    if (scanning) return;
+    captureFrame();
+    runScan();
+  });
+
+  function captureFrame(){
+    if (video.style.display === 'block' && video.videoWidth){
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      lastCaptureDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+    }
+    // if using an uploaded photo, lastCaptureDataUrl is already set
+  }
+
+  function runScan(){
+    scanning = true;
+    scanBtn.disabled = true;
+    laser.classList.add('active');
+    scanStatus.style.display = 'flex';
+    let pct = 0;
+    scanStatusText.textContent = "analyzing frame…";
+    const interval = setInterval(() => {
+      pct += Math.random()*18 + 8;
+      if (pct >= 100){
+        pct = 100;
+        clearInterval(interval);
+        finishScan();
+      }
+      scanPct.textContent = Math.floor(pct) + "%";
+      if (pct > 55) scanStatusText.textContent = "matching catalog…";
+    }, 160);
+  }
+
+  function finishScan(){
+    laser.classList.remove('active');
+    scanStatus.style.display = 'none';
+    scanning = false;
+    scanBtn.disabled = false;
+
+    const item = pickItem();
+    const results = buildResults(item);
+    renderReceipt(item, results, lastCaptureDataUrl);
+    addToHistory(item, results, lastCaptureDataUrl);
+  }
+
+  /* ---------------- Mock recognition ---------------- */
+  function pickItem(){
+    // lightly "read" the captured image's average color to make each
+    // scan feel responsive to the photo, then pick a catalog entry.
+    let seed = Math.random();
+    try{
+      if (canvas.width){
+        const ctx = canvas.getContext('2d');
+        const data = ctx.getImageData(0,0,canvas.width,canvas.height).data;
+        let r=0,g=0,b=0,n=0;
+        for (let i=0;i<data.length;i+=400){ r+=data[i]; g+=data[i+1]; b+=data[i+2]; n++; }
+        seed = ((r+g+b)/n) % 100 / 100;
+      }
+    }catch(e){ /* canvas may be blank if only an uploaded still was used */ }
+    const idx = Math.floor(((seed*7 + Math.random()*CATALOG.length*3)) ) % CATALOG.length;
+    return CATALOG[idx];
+  }
+
+  /* ---------------- Mock price comparison ---------------- */
+  function buildResults(item){
+    return STORES.map(store => {
+      const jitter = (Math.random()*0.24) - 0.08; // -8% to +16%
+      const price = Math.max(4.99, item.base * (1 + jitter));
+      const shipFree = Math.random() > 0.45;
+      const shipping = shipFree ? 0 : +(Math.random()*7 + 2).toFixed(2);
+      const rating = (3.6 + Math.random()*1.3);
+      const days = Math.floor(Math.random()*5) + 1;
+      const q = encodeURIComponent(item.name);
+      return {
+        store: store.name,
+        color: store.color,
+        price: +price.toFixed(2),
+        shipping,
+        rating: +rating.toFixed(1),
+        days,
+        url: store.searchUrl(q)
+      };
+    }).sort((a,b) => (a.price+a.shipping) - (b.price+b.shipping));
+  }
+
+  /* ---------------- Render ---------------- */
+  function starString(rating){
+    const full = Math.round(rating);
+    return "★".repeat(full) + "☆".repeat(5-full);
+  }
+
+  function renderReceipt(item, results, imgUrl){
+    const best = results[0];
+    const rows = results.map((r,i) => `
+      <tr class="${i===0 ? 'best' : ''}">
+        <td>
+          <div class="store-cell">
+            <span class="swatch" style="background:${r.color}"></span>
+            ${r.store}
+            ${i===0 ? '<span class="stamp">best price</span>' : ''}
+          </div>
+        </td>
+        <td><span class="price">$${r.price.toFixed(2)}</span></td>
+        <td><span class="shipping">${r.shipping===0 ? 'free ship' : '+$'+r.shipping.toFixed(2)+' ship'} · ${r.days}d</span></td>
+        <td><span class="stars">${starString(r.rating)}</span></td>
+        <td><a class="view" href="${r.url}" target="_blank" rel="noopener">View deal →</a></td>
+      </tr>
+    `).join("");
+
+    const scanId = "SCN-" + Math.floor(Math.random()*90000+10000);
+    const now = new Date();
+
+    receiptWrap.innerHTML = `
+      <div class="receipt">
+        <div class="r-top">
+          <div class="r-thumb">${imgUrl ? `<img src="${imgUrl}" alt="${item.name}">` : ''}</div>
+          <div>
+            <div class="r-id">${scanId} · ${now.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</div>
+            <div class="r-name">${item.name}</div>
+            <div class="r-meta">category: ${item.cat} · ${results.length} stores compared</div>
+          </div>
+        </div>
+        <div class="barcode" aria-hidden="true"></div>
+        <table class="compare">
+          <thead><tr><th>Store</th><th>Price</th><th>Shipping</th><th>Rating</th><th></th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+        <div class="r-foot">
+          <span>lowest total: <span class="total">$${(best.price+best.shipping).toFixed(2)}</span> at ${best.store}</span>
+          <span>scanned via camera</span>
+        </div>
+        <div class="demo-flag">
+          <span class="badge">demo</span>
+          <span>Object identification and prices above are simulated locally for this demo — not live retailer data. "View deal" links go to real store search pages for this item name.</span>
+        </div>
+      </div>
+    `;
+    receiptWrap.scrollIntoView({ behavior:'smooth', block:'nearest' });
+  }
+
+  /* ---------------- History ---------------- */
+  function addToHistory(item, results, imgUrl){
+    history.unshift({ item, results, imgUrl });
+    if (history.length > 12) history.pop();
+    historySection.style.display = 'block';
+    historyList.innerHTML = history.map((h,i) => `
+      <button class="hist-item" type="button" data-idx="${i}">
+        ${h.imgUrl ? `<img src="${h.imgUrl}" alt="">` : ''}
+        <div class="hn">${h.item.name}</div>
+        <div class="hp">$${h.results[0].price.toFixed(2)}</div>
+      </button>
+    `).join("");
+    historyList.querySelectorAll('.hist-item').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const h = history[+btn.dataset.idx];
+        renderReceipt(h.item, h.results, h.imgUrl);
+      });
+    });
+  }
+
+})();
+</script>
+</body>
+</html>
